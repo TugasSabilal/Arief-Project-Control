@@ -1,0 +1,2077 @@
+<!DOCTYPE html>
+<html lang="id" class="h-full bg-slate-50">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Arief Project Control - Pro Dashboard</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: { 50:'#f0f7ff',100:'#e0effe',500:'#2563eb',600:'#1d4ed8',700:'#1e40af' },
+          },
+          fontFamily: { sans: ['Inter','system-ui','sans-serif'] }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: rgba(0,0,0,0.03); }
+    ::-webkit-scrollbar-thumb { background: rgba(100,116,139,0.3); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(100,116,139,0.5); }
+
+    .tree-line { position: relative; }
+    .tree-line::before {
+      content:''; position:absolute; left:14px; top:0; bottom:12px;
+      width:2px; background-color: rgba(203,213,225,0.5);
+    }
+    .dark .tree-line::before { background-color: rgba(51,65,85,0.5); }
+
+    .glass-card {
+      background: rgba(255,255,255,0.85);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(226,232,240,0.8);
+    }
+    .dark .glass-card {
+      background: rgba(30,41,59,0.85);
+      border-color: rgba(51,65,85,0.8);
+    }
+
+    .node-actions { opacity: 0; transition: opacity 0.15s ease; }
+    .node-item:hover .node-actions { opacity: 1; }
+
+    @keyframes modalPop {
+      0% { transform: scale(0.9); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .modal-pop { animation: modalPop 0.2s ease-out; }
+
+    .option-card { transition: all 0.15s ease; cursor: pointer; }
+    .option-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,0.08); }
+
+    .file-card { transition: all 0.15s ease; }
+    .file-card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.08); }
+
+    @media (max-width: 767px) {
+      #sidebar { transform: translateX(-100%); }
+      #sidebar.open { transform: translateX(0); }
+    }
+  </style>
+</head>
+
+<body class="h-full font-sans antialiased text-slate-800 dark:text-slate-100 bg-slate-100 dark:bg-slate-900 transition-colors duration-200">
+
+  <div id="app" class="flex h-screen overflow-hidden">
+
+   
+    <aside id="sidebar" class="w-80 md:w-96 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col flex-shrink-0 transition-transform duration-300 z-40 shadow-lg">
+
+      <div class="p-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/50">
+        <div class="flex items-center space-x-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
+            <i class="fa-solid fa-folder-tree text-lg"></i>
+          </div>
+          <div>
+            <h1 class="font-bold text-slate-900 dark:text-white text-base leading-tight">Arief Project Control</h1>
+            <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">Document Management System</p>
+          </div>
+        </div>
+        <button id="toggleSidebarMobile" class="md:hidden text-slate-500 hover:text-slate-700 dark:text-slate-400 p-2 rounded-lg">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="p-3 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+        <button id="addNewBtn" class="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-sm shadow-lg shadow-blue-500/30 transition-all flex items-center justify-center gap-2">
+          <i class="fa-solid fa-plus"></i>
+          <span>Add Project / Filter Project</span>
+        </button>
+      </div>
+
+      <div class="p-3 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 space-y-2">
+        <div class="relative">
+          <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+          <input type="text" id="treeSearchInput" placeholder="Cari kode/folder..."
+            class="w-full pl-9 pr-8 py-2 text-xs bg-slate-100 dark:bg-slate-700/60 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-800 dark:text-slate-200" />
+          <button id="clearSearchBtn" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs">
+            <i class="fa-solid fa-circle-xmark"></i>
+          </button>
+        </div>
+        <div class="flex items-center justify-end text-[11px] text-slate-500 dark:text-slate-400 px-1">
+          <span id="treeMatchCount" class="font-semibold text-blue-600 dark:text-blue-400"></span>
+        </div>
+      </div>
+
+      <div class="flex-1 overflow-y-auto p-3 space-y-1" id="treeContainer"></div>
+
+      <div class="p-3 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-xs text-slate-500 dark:text-slate-400 flex justify-between items-center">
+        <span class="flex items-center gap-1.5 font-medium">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          System Ready
+        </span>
+        <span class="text-[10px] text-slate-400">by Arief</span>
+      </div>
+    </aside>
+
+    <div id="sidebarOverlay" class="hidden md:hidden fixed inset-0 bg-black/50 z-30"></div>
+
+    
+    <main class="flex-1 flex flex-col min-w-0 overflow-hidden bg-slate-100 dark:bg-slate-900">
+
+      <header class="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-4 py-3 flex items-center justify-between shadow-sm z-20">
+        <div class="flex items-center space-x-3 min-w-0">
+          <button id="mobileMenuBtn" class="md:hidden text-slate-600 dark:text-slate-300 p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700">
+            <i class="fa-solid fa-bars text-lg"></i>
+          </button>
+          <nav class="flex items-center space-x-2 text-xs md:text-sm text-slate-600 dark:text-slate-300 overflow-hidden whitespace-nowrap" id="breadcrumb">
+            <button onclick="app.showDashboardOverview()" class="hover:text-blue-600 dark:hover:text-blue-400 font-medium flex items-center gap-1">
+              <i class="fa-solid fa-house text-xs"></i> Dashboard
+            </button>
+            <span class="text-slate-300 dark:text-slate-600">/</span>
+            <span id="breadcrumbCurrent" class="font-semibold text-slate-900 dark:text-white truncate">Overview</span>
+          </nav>
+        </div>
+
+        <div class="flex items-center space-x-2 md:space-x-3">
+          <button onclick="app.showDashboardOverview()" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50 transition-colors flex items-center gap-1.5">
+            <i class="fa-solid fa-chart-pie"></i> Overview
+          </button>
+          <button id="themeToggle" class="p-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 rounded-lg bg-slate-100 dark:bg-slate-700">
+            <i class="fa-solid fa-moon dark:hidden"></i>
+            <i class="fa-solid fa-sun hidden dark:block text-amber-400"></i>
+          </button>
+        </div>
+      </header>
+
+      <div id="contentViewport" class="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
+
+       
+        <div id="overviewTab" class="space-y-6">
+          <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-900 text-white rounded-2xl p-6 shadow-xl relative overflow-hidden">
+            <div class="absolute right-0 top-0 bottom-0 w-1/3 opacity-10 pointer-events-none flex items-center justify-center">
+              <i class="fa-solid fa-diagram-project text-[180px]"></i>
+            </div>
+            <div class="relative z-10 max-w-2xl">
+              <span class="inline-block px-3 py-1 bg-blue-500/20 text-blue-300 text-xs rounded-full font-semibold mb-3 backdrop-blur-md border border-blue-400/30">
+                <i class="fa-solid fa-shield-halved mr-1"></i> Arief Project Control System
+              </span>
+              <h2 class="text-2xl md:text-3xl font-extrabold tracking-tight">Project Document Control Center</h2>
+              <p class="mt-2 text-sm text-slate-300 leading-relaxed">
+                Kelola semua jenis berkas proyek (Excel, PDF, Word, Gambar, ZIP, DWG, dll) pada setiap folder tujuan (leaf node) secara langsung.
+              </p>
+              <div class="mt-5 flex flex-wrap gap-3">
+                <button onclick="app.focusTreeSearch()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-xl shadow-lg shadow-blue-600/30 transition-all flex items-center gap-2">
+                  <i class="fa-solid fa-magnifying-glass"></i> Cari Folder
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="glass-card p-4 rounded-xl shadow-sm border flex items-center space-x-4">
+              <div class="w-12 h-12 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center text-xl flex-shrink-0">
+                <i class="fa-solid fa-folder-tree"></i>
+              </div>
+              <div>
+                <p class="text-xs font-medium text-slate-500 dark:text-slate-400">Total Leaf Folder</p>
+                <h3 class="text-xl font-bold text-slate-900 dark:text-white" id="statTotalLeaf">0</h3>
+                <p class="text-[11px] text-slate-400">Target lokasi upload</p>
+              </div>
+            </div>
+
+            <div class="glass-card p-4 rounded-xl shadow-sm border flex items-center space-x-4">
+              <div class="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-xl flex-shrink-0">
+                <i class="fa-solid fa-file-arrow-up"></i>
+              </div>
+              <div>
+                <p class="text-xs font-medium text-slate-500 dark:text-slate-400">Total Berkas</p>
+                <h3 class="text-xl font-bold text-slate-900 dark:text-white" id="statTotalFiles">0</h3>
+                <p class="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium" id="statPercentDone">0% Lengkap</p>
+              </div>
+            </div>
+
+            <div class="glass-card p-4 rounded-xl shadow-sm border flex items-center space-x-4">
+              <div class="w-12 h-12 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center text-xl flex-shrink-0">
+                <i class="fa-solid fa-database"></i>
+              </div>
+              <div>
+                <p class="text-xs font-medium text-slate-500 dark:text-slate-400">Total Ukuran</p>
+                <h3 class="text-xl font-bold text-slate-900 dark:text-white" id="statTotalSize">0 KB</h3>
+                <p class="text-[11px] text-slate-400">Total penyimpanan</p>
+              </div>
+            </div>
+
+            <div class="glass-card p-4 rounded-xl shadow-sm border flex items-center space-x-4">
+              <div class="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center text-xl flex-shrink-0">
+                <i class="fa-solid fa-layer-group"></i>
+              </div>
+              <div>
+                <p class="text-xs font-medium text-slate-500 dark:text-slate-400">Kategori Utama</p>
+                <h3 class="text-xl font-bold text-slate-900 dark:text-white" id="statTotalCategories">8</h3>
+                <p class="text-[11px] text-slate-400">Disiplin Proyek</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="lg:col-span-2 glass-card p-5 rounded-2xl shadow-sm border flex flex-col justify-between">
+              <div class="flex items-center justify-between mb-4">
+                <div>
+                  <h3 class="font-bold text-slate-900 dark:text-white text-base">Kelengkapan Dokumen per Kategori</h3>
+                  <p class="text-xs text-slate-500 dark:text-slate-400">Persentase folder akhir yang sudah memiliki berkas</p>
+                </div>
+                <span class="text-xs px-2.5 py-1 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-medium rounded-lg">
+                  Realtime Status
+                </span>
+              </div>
+              <div class="relative h-64 w-full">
+                <canvas id="categoryChart"></canvas>
+              </div>
+            </div>
+
+            <div class="glass-card p-5 rounded-2xl shadow-sm border flex flex-col">
+              <h3 class="font-bold text-slate-900 dark:text-white text-base mb-1">Struktur Disiplin</h3>
+              <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">Pilih kelompok folder utama</p>
+              <div id="disciplineList" class="flex-1 overflow-y-auto space-y-2 pr-1"></div>
+            </div>
+          </div>
+
+          <div class="glass-card rounded-2xl shadow-sm border overflow-hidden">
+            <div class="p-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+              <div>
+                <h3 class="font-bold text-slate-900 dark:text-white text-base">Aktivitas Upload Terbaru</h3>
+                <p class="text-xs text-slate-500 dark:text-slate-400">Daftar berkas yang telah diunggah ke leaf nodes</p>
+              </div>
+              <button onclick="app.clearAllFiles()" class="text-xs text-rose-600 hover:text-rose-700 dark:text-rose-400 font-medium flex items-center gap-1">
+                <i class="fa-solid fa-trash-can"></i> Hapus Semua Berkas
+              </button>
+            </div>
+
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs text-slate-600 dark:text-slate-300">
+                <thead class="bg-slate-50 dark:bg-slate-800/80 uppercase text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                  <tr>
+                    <th class="p-3.5">Folder Target</th>
+                    <th class="p-3.5">Nama Berkas</th>
+                    <th class="p-3.5">Tipe</th>
+                    <th class="p-3.5">Ukuran</th>
+                    <th class="p-3.5">Waktu Upload</th>
+                    <th class="p-3.5 text-right">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="recentUploadsTbody" class="divide-y divide-slate-200 dark:divide-slate-700"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        
+        <div id="folderWorkspaceTab" class="hidden space-y-6">
+          <div class="glass-card p-6 rounded-2xl shadow-sm border flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <div class="flex items-center gap-2 mb-1">
+                <span id="folderCategoryBadge" class="px-2.5 py-0.5 rounded-full text-xs font-semibold text-white bg-blue-600">Category</span>
+                <span id="folderTypeBadge" class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300">Folder</span>
+              </div>
+              <h2 id="folderTitle" class="text-2xl font-bold text-slate-900 dark:text-white">Folder Name</h2>
+              <p id="folderPathText" class="text-xs text-slate-500 dark:text-slate-400 mt-1 font-mono">/ Path / Folder</p>
+            </div>
+          </div>
+
+          <div id="leafUploadSection" class="hidden space-y-6">
+            <div class="glass-card p-6 rounded-2xl shadow-sm border text-center">
+              <h3 class="font-bold text-slate-900 dark:text-white text-base mb-1">Upload Berkas (Semua Format)</h3>
+              <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">Excel, PDF, Word, Gambar, ZIP, DWG, dan semua jenis berkas lainnya.</p>
+
+              <div id="dropzone" class="border-2 border-dashed border-blue-300 dark:border-blue-700 hover:border-blue-500 dark:hover:border-blue-500 bg-blue-50/50 dark:bg-blue-950/20 rounded-xl p-8 transition-all cursor-pointer flex flex-col items-center justify-center space-y-3 group">
+                <div class="w-16 h-16 rounded-2xl bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
+                  <i class="fa-solid fa-cloud-arrow-up"></i>
+                </div>
+                <div>
+                  <p class="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                    Tarik & Lepas Berkas di sini, atau <span class="text-blue-600 dark:text-blue-400 underline">Pilih Berkas</span>
+                  </p>
+                  <p class="text-xs text-slate-400 mt-1">Semua format didukung • Bisa banyak file sekaligus • Maks 25MB per file</p>
+                </div>
+                <input type="file" id="fileInput" multiple class="hidden" />
+              </div>
+            </div>
+
+            <div id="fileListSection" class="hidden space-y-4">
+              <div class="flex items-center justify-between">
+                <h3 class="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2">
+                  <i class="fa-solid fa-folder-open text-blue-600"></i>
+                  Berkas dalam Folder (<span id="fileCountBadge">0</span>)
+                </h3>
+              </div>
+              <div id="filesGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+            </div>
+
+            <div id="filePreviewSection" class="hidden space-y-4">
+              <div class="flex items-center justify-between">
+                <h3 class="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2">
+                  <i class="fa-solid fa-eye text-blue-600"></i>
+                  Preview: <span id="previewFileName" class="text-blue-600 dark:text-blue-400"></span>
+                </h3>
+                <button onclick="app.closePreview()" class="text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700">
+                  <i class="fa-solid fa-xmark"></i> Tutup Preview
+                </button>
+              </div>
+              <div id="previewContainer" class="glass-card rounded-2xl shadow-sm border p-4 overflow-hidden"></div>
+            </div>
+          </div>
+
+          <div id="parentFolderSection" class="hidden space-y-4">
+            <h3 class="font-bold text-slate-900 dark:text-white text-base">Sub-Folder dalam Kategori ini:</h3>
+            <div id="subfoldersGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+          </div>
+        </div>
+
+      </div>
+
+      <footer class="bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 py-2.5 px-4 text-center text-xs text-slate-500 dark:text-slate-400 flex flex-col sm:flex-row items-center justify-between gap-2 z-10">
+        <div><span class="font-semibold text-slate-700 dark:text-slate-300">Arief Project Control Dashboard</span> &copy; 2026. All rights reserved.</div>
+        <div class="flex items-center space-x-3 text-[11px]">
+          <span class="text-blue-600 dark:text-blue-400 font-semibold"><i class="fa-solid fa-bolt mr-1"></i> Bismillah Under development</span>
+        </div>
+      </footer>
+    </main>
+  </div>
+
+  
+  <div id="choiceModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div class="modal-pop bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <h3 class="font-bold text-slate-900 dark:text-white text-lg">Mau Buat Apa?</h3>
+          <p class="text-xs text-slate-500 dark:text-slate-400">Pilih salah satu opsi di bawah ini</p>
+        </div>
+        <button id="closeChoiceModalBtn" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3">
+        <div class="option-card border-2 border-orange-200 dark:border-orange-800 rounded-xl p-4 flex items-center gap-4 bg-orange-50/40 dark:bg-orange-950/20" data-choice="project">
+          <div class="w-14 h-14 rounded-xl bg-orange-500 flex items-center justify-center text-white text-2xl flex-shrink-0 shadow-md shadow-orange-500/30">
+            <i class="fa-solid fa-folder-plus"></i>
+          </div>
+          <div class="flex-1 min-w-0">
+            <h4 class="font-bold text-slate-900 dark:text-white text-sm">🟠 Project Baru</h4>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Ditambahkan di <strong>luar folder</strong> (sejajar 01, 02, A, B) sebagai folder project (icon orange)</p>
+          </div>
+          <i class="fa-solid fa-chevron-right text-slate-400"></i>
+        </div>
+
+        <div class="option-card border-2 border-blue-200 dark:border-blue-800 rounded-xl p-4 flex items-center gap-4 bg-blue-50/40 dark:bg-blue-950/20" data-choice="project-filter">
+          <div class="w-14 h-14 rounded-xl bg-blue-500 flex items-center justify-center text-white text-2xl flex-shrink-0 shadow-md shadow-blue-500/30">
+            <i class="fa-solid fa-filter"></i>
+          </div>
+          <div class="flex-1 min-w-0">
+            <h4 class="font-bold text-slate-900 dark:text-white text-sm">🔵 Filter Project</h4>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Filter berdasarkan folder hierarki tertinggi (Project), tanpa membuat folder baru</p>
+          </div>
+          <i class="fa-solid fa-chevron-right text-slate-400"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <div id="projectModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div class="modal-pop bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-orange-500 flex items-center justify-center text-white shadow-md">
+            <i class="fa-solid fa-folder-plus"></i>
+          </div>
+          <div>
+            <h3 class="font-bold text-slate-900 dark:text-white text-base">Project Baru</h3>
+            <p class="text-xs text-slate-500 dark:text-slate-400">Ditambahkan sebagai folder root (sejajar 01, 02, A, B)</p>
+          </div>
+        </div>
+        <button id="closeProjectModalBtn" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3">
+        <div>
+          <label class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1 block">Nama Project *</label>
+          <input type="text" id="newProjectName" placeholder="Contoh: Tes, Proyek A, dll"
+            class="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 text-slate-800 dark:text-slate-100" />
+        </div>
+        <div class="flex items-start gap-2 p-3 bg-orange-50 dark:bg-orange-950/30 rounded-lg border border-orange-200 dark:border-orange-800">
+          <i class="fa-solid fa-circle-info text-orange-600 dark:text-orange-400 text-sm mt-0.5"></i>
+          <p class="text-[11px] text-orange-700 dark:text-orange-300 leading-relaxed">
+            Folder project baru akan muncul di <strong>luar folder</strong>, sejajar dengan 01, 02, 03, A, B (di root level), dengan icon 🟠 orange.
+          </p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 pt-2">
+        <button id="cancelProjectBtn" class="flex-1 px-4 py-2 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">Batal</button>
+        <button id="confirmProjectBtn" class="flex-1 px-4 py-2 text-xs font-semibold rounded-lg bg-orange-500 hover:bg-orange-600 text-white transition-colors flex items-center justify-center gap-2">
+          <i class="fa-solid fa-check"></i> Buat Project
+        </button>
+      </div>
+    </div>
+  </div>
+
+ 
+  <div id="folderModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div class="modal-pop bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-blue-500 flex items-center justify-center text-white shadow-md"><i class="fa-solid fa-filter"></i></div>
+          <div><h3 class="font-bold text-slate-900 dark:text-white text-base">Filter Project</h3><p class="text-xs text-slate-500 dark:text-slate-400">Filter berdasarkan folder hierarki tertinggi</p></div>
+        </div>
+        <button id="closeFolderModalBtn" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+      <div>
+        <div class="flex items-center justify-between mb-2">
+          <label class="text-xs font-semibold text-slate-700 dark:text-slate-300">Pilih Project:</label>
+          <button id="toggleAllProjectsBtn" type="button" class="text-[11px] font-semibold text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">Pilih Semua</button>
+        </div>
+        <div id="projectPicker" class="w-full max-h-56 overflow-y-auto bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg p-2 space-y-1"></div>
+        <div class="mt-2 flex items-center justify-between">
+          <p class="text-[11px] text-slate-400">Project adalah folder hierarki tertinggi. Anda dapat memilih lebih dari satu project.</p>
+          <span id="projectFilterCount" class="text-[11px] font-semibold text-blue-600 dark:text-blue-400 whitespace-nowrap ml-3"></span>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 pt-2">
+        <button id="cancelFolderBtn" class="flex-1 px-4 py-2 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">Batal</button>
+        <button id="confirmFolderBtn" class="flex-1 px-4 py-2 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors flex items-center justify-center gap-2"><i class="fa-solid fa-filter"></i> Terapkan Filter</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="renameModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div class="modal-pop bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-green-600 flex items-center justify-center text-white shadow-md">
+            <i class="fa-solid fa-pen"></i>
+          </div>
+          <div>
+            <h3 class="font-bold text-slate-900 dark:text-white text-base">Edit Folder</h3>
+            <p class="text-xs text-slate-500 dark:text-slate-400">Ubah nama folder</p>
+          </div>
+        </div>
+        <button id="closeRenameModalBtn" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3">
+        <div>
+          <label class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1 block">Nama *</label>
+          <input type="text" id="renameName" placeholder="Nama baru"
+            class="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-800 dark:text-slate-100" />
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1 block">Kode</label>
+          <input type="text" id="renameCode" placeholder="Kode (opsional)"
+            class="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-800 dark:text-slate-100" />
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 pt-2">
+        <button id="cancelRenameBtn" class="flex-1 px-4 py-2 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">Batal</button>
+        <button id="confirmRenameBtn" class="flex-1 px-4 py-2 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition-colors flex items-center justify-center gap-2">
+          <i class="fa-solid fa-check"></i> Simpan
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    
+    const defaultTemplate = [
+      { id:"01", code:"01", name:"01. UPSTREAM DOCUMENT", color:"#f39c12", children:[
+        { id:"011", code:"011", name:"011. ITB & TOR" },
+        { id:"012", code:"012", name:"012. PROPOSAL" },
+        { id:"013", code:"013", name:"013. CLIENT" },
+        { id:"015", code:"015", name:"015. TQ" },
+        { id:"016", code:"016", name:"016. KOM" },
+        { id:"017", code:"017", name:"017. MOM" },
+        { id:"018", code:"018", name:"018. PROJ REFERENCE" }
+      ]},
+      { id:"02", code:"02", name:"02. PLAN & CONTROL", color:"#27ae60", children:[
+        { id:"021", code:"021", name:"021. ORGANIZATION" },
+        { id:"022", code:"022", name:"022. EXECUTION PLAN" },
+        { id:"023", code:"023", name:"023. SCHEDULE" },
+        { id:"024", code:"024", name:"024. MH-MP" },
+        { id:"025", code:"025", name:"025. SOFTWARE LIST" },
+        { id:"026", code:"026", name:"026. ACTIVITY LIST", children:[
+          { id:"261", code:"261", name:"261. New Folder" },
+          { id:"262", code:"262", name:"262. New folder (2)" },
+          { id:"263", code:"263", name:"263. New folder (3)" }
+        ]}
+      ]},
+      { id:"03", code:"03", name:"03. WORKING DOCUMENT", color:"#2980b9", children:[
+        { id:"031", code:"031", name:"031. DESIGN BASIS", children:[
+          { id:"311", code:"311", name:"311. PFD", children:[
+            { id:"311-01", code:"311-01", name:"01. IFR" },
+            { id:"311-02", code:"311-02", name:"02. IFD" },
+            { id:"311-03", code:"311-03", name:"03. IFC" }
+          ]},
+          { id:"312", code:"312", name:"312. P&ID", children:[
+            { id:"312-01", code:"312-01", name:"01. IFR" },
+            { id:"312-02", code:"312-02", name:"02. IFD" },
+            { id:"312-03", code:"312-03", name:"03. IFC" }
+          ]},
+          { id:"313", code:"313", name:"313. PLOT PLAN", children:[
+            { id:"313-00", code:"313-00", name:"00. DRAFT" },
+            { id:"313-01", code:"313-01", name:"01. IFR" },
+            { id:"313-02", code:"313-02", name:"02. IFD" },
+            { id:"313-03", code:"313-03", name:"03. IFC" },
+            { id:"313-04", code:"313-04", name:"04. CLIENT COMMENT" },
+            { id:"313-05", code:"313-05", name:"05. INTERNAL REVIEW" }
+          ]},
+          { id:"314", code:"314", name:"314. EQUIPMENT LIST" },
+          { id:"315", code:"315", name:"315. DATASHEET" },
+          { id:"316", code:"316", name:"316. MHN & OM" },
+          { id:"317", code:"317", name:"317. PROJ STANDARD" }
+        ]},
+        { id:"032", code:"032", name:"032. OTHER DISCIPLINE", children:[
+          { id:"321", code:"321", name:"321. PROCESS" },
+          { id:"322", code:"322", name:"322. SAFETY" },
+          { id:"323", code:"323", name:"323. CIVIL", children:[
+            { id:"323-01", code:"323-01", name:"01. STRUCTURE" },
+            { id:"323-02", code:"323-02", name:"02. BUILDING" },
+            { id:"323-03", code:"323-03", name:"03. WEIGHT CONTROL" }
+          ]},
+          { id:"324", code:"324", name:"324. MECHANICAL", children:[
+            { id:"324-01", code:"324-01", name:"01. PKG" },
+            { id:"324-02", code:"324-02", name:"02. STATIC" },
+            { id:"324-03", code:"324-03", name:"03. ROTARY" }
+          ]},
+          { id:"325", code:"325", name:"325. E&I" },
+          { id:"326", code:"326", name:"326. CONST" },
+          { id:"327", code:"327", name:"327. COMMISIONING" },
+          { id:"328", code:"328", name:"328. QC" },
+          { id:"329", code:"329", name:"329. EXTERNAL" }
+        ]},
+        { id:"033", code:"033", name:"033. SITE SURVEY", children:[
+          { id:"331", code:"331", name:"331. PHOTO" },
+          { id:"332", code:"332", name:"332. DOCUMENT" },
+          { id:"333", code:"333", name:"333. SURVEY REPORT" }
+        ]},
+        { id:"034", code:"034", name:"034. PIP INFO" },
+        { id:"035", code:"035", name:"035. STUDY" }
+      ]},
+      { id:"04", code:"04", name:"04. 3D DESIGN", color:"#8e44ad", children:[
+        { id:"041", code:"041", name:"041. ROAD TO 30%", children:[
+          { id:"411a", code:"411a", name:"411. 3D MODEL PROGRESS" },
+          { id:"412a", code:"412a", name:"412. LINE COMPLETENESS" },
+          { id:"413a", code:"413a", name:"413. 3D COMMENT", children:[
+            { id:"413a-01", code:"413a-01", name:"01. INTERNAL" },
+            { id:"413a-02", code:"413a-02", name:"02. EXTERNAL" }
+          ]}
+        ]},
+        { id:"042", code:"042", name:"042. ROAD TO 60%", children:[
+          { id:"411b", code:"411b", name:"411. 3D MODEL PROGRESS" },
+          { id:"412b", code:"412b", name:"412. LINE COMPLETENESS" },
+          { id:"413b", code:"413b", name:"413. 3D COMMENT", children:[
+            { id:"413b-01", code:"413b-01", name:"01. INTERNAL" },
+            { id:"413b-02", code:"413b-02", name:"02. EXTERNAL" }
+          ]}
+        ]},
+        { id:"043", code:"043", name:"043. ROAD TO 90%", children:[
+          { id:"411c", code:"411c", name:"411. 3D MODEL PROGRESS" },
+          { id:"412c", code:"412c", name:"412. LINE COMPLETENESS" },
+          { id:"413c", code:"413c", name:"413. 3D COMMENT", children:[
+            { id:"413c-01", code:"413c-01", name:"01. INTERNAL" },
+            { id:"413c-02", code:"413c-02", name:"02. EXTERNAL" }
+          ]}
+        ]},
+        { id:"044", code:"044", name:"044. OPTIMIZATON" }
+      ]},
+      { id:"05", code:"05", name:"05. MATERIAL", color:"#f1c40f", children:[
+        { id:"051", code:"051", name:"051. CONTROL SHEET" },
+        { id:"0510", code:"0510", name:"0510. V-DOC" },
+        { id:"0511", code:"0511", name:"0511. TO 3D ADMIN" },
+        { id:"052", code:"052", name:"052. SPECIFICATION" },
+        { id:"053", code:"053", name:"053. CALCULATION" },
+        { id:"054", code:"054", name:"054. LINE LIST" },
+        { id:"055", code:"055", name:"055. DATA SHEET" },
+        { id:"056", code:"056", name:"056. SP ITEM" },
+        { id:"057", code:"057", name:"057. REQUSITION" },
+        { id:"058", code:"058", name:"058. TBE" },
+        { id:"059", code:"059", name:"059. VENDOR QUOTATION" }
+      ]},
+      { id:"06", code:"06", name:"06. MECHANICAL STRESS", color:"#e74c3c", children:[
+        { id:"061", code:"061", name:"061. CONTROL SHEET" },
+        { id:"062", code:"062", name:"062. SPECIFICATION" },
+        { id:"063", code:"063", name:"063. CRITICAL LIST" },
+        { id:"064", code:"064", name:"064. STRESS CALCULATION" },
+        { id:"065", code:"065", name:"065. STRESS SKETCH" }
+      ]},
+      { id:"A", code:"A", name:"A. CODE & STANDARD", color:"#7f8c8d", children:[
+        { id:"A01", code:"A01", name:"A01. INTERNATIONAL STD" },
+        { id:"A02", code:"A02", name:"A02. COMPANY STD" },
+        { id:"A03", code:"A03", name:"A03. CONTRACTOR STD" }
+      ]},
+      { id:"B", code:"B", name:"B. CHECK LIST", color:"#16a085", children:[
+        { id:"B01", code:"B01", name:"B01. PLOT PLAN" },
+        { id:"B02", code:"B02", name:"B02. ISOMETRIC" }
+      ]}
+    ];
+
+  
+    function getFileMeta(filename) {
+      const ext = (filename.split('.').pop() || '').toLowerCase();
+      const map = {
+        
+        xlsx: { icon:'fa-file-excel', color:'text-emerald-500', cat:'excel' },
+        xls:  { icon:'fa-file-excel', color:'text-emerald-500', cat:'excel' },
+        csv:  { icon:'fa-file-csv',   color:'text-emerald-500', cat:'excel' },
+        
+        pdf:  { icon:'fa-file-pdf',   color:'text-rose-500',    cat:'pdf' },
+        
+        doc:  { icon:'fa-file-word',  color:'text-blue-500',    cat:'word' },
+        docx: { icon:'fa-file-word',  color:'text-blue-500',    cat:'word' },
+        
+        ppt:  { icon:'fa-file-powerpoint', color:'text-orange-500', cat:'ppt' },
+        pptx: { icon:'fa-file-powerpoint', color:'text-orange-500', cat:'ppt' },
+        
+        png:  { icon:'fa-file-image', color:'text-purple-500',  cat:'image' },
+        jpg:  { icon:'fa-file-image', color:'text-purple-500',  cat:'image' },
+        jpeg: { icon:'fa-file-image', color:'text-purple-500',  cat:'image' },
+        gif:  { icon:'fa-file-image', color:'text-purple-500',  cat:'image' },
+        webp: { icon:'fa-file-image', color:'text-purple-500',  cat:'image' },
+        svg:  { icon:'fa-file-image', color:'text-purple-500',  cat:'image' },
+        bmp:  { icon:'fa-file-image', color:'text-purple-500',  cat:'image' },
+        
+        zip:  { icon:'fa-file-zipper', color:'text-amber-500',  cat:'zip' },
+        rar:  { icon:'fa-file-zipper', color:'text-amber-500',  cat:'zip' },
+        '7z': { icon:'fa-file-zipper', color:'text-amber-500',  cat:'zip' },
+        
+        txt:  { icon:'fa-file-lines',  color:'text-slate-500',  cat:'text' },
+        md:   { icon:'fa-file-lines',  color:'text-slate-500',  cat:'text' },
+        json: { icon:'fa-file-code',   color:'text-yellow-600', cat:'text' },
+        xml:  { icon:'fa-file-code',   color:'text-yellow-600', cat:'text' },
+        html: { icon:'fa-file-code',   color:'text-orange-600', cat:'text' },
+        
+        dwg:  { icon:'fa-compass-drafting', color:'text-indigo-500', cat:'other' },
+        dxf:  { icon:'fa-compass-drafting', color:'text-indigo-500', cat:'other' },
+        
+        mp3:  { icon:'fa-file-audio',  color:'text-pink-500',   cat:'other' },
+        mp4:  { icon:'fa-file-video',  color:'text-pink-500',   cat:'other' },
+        mov:  { icon:'fa-file-video',  color:'text-pink-500',   cat:'other' },
+       
+      };
+      return map[ext] || { icon:'fa-file', color:'text-slate-500', cat:'other' };
+    }
+
+    function formatBytes(bytes) {
+      if (!bytes) return '0 B';
+      const k = 1024;
+      const sizes = ['B','KB','MB','GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return (bytes / Math.pow(k, i)).toFixed(1) + ' ' + sizes[i];
+    }
+
+    
+    function createProjectRoot(projectName, categories) {
+      return {
+        id: 'prj_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+        code: 'P01',
+        name: projectName,
+        isUserCreated: true,
+        isProject: true,
+        isTopLevel: true,
+        color: '#f97316',
+        createdAt: new Date().toISOString(),
+        children: categories
+      };
+    }
+
+    function ensureProjectParent(data) {
+      if (!data || !Array.isArray(data.structure)) return;
+
+      // One-time migration: place the existing top-level categories under Project-1.
+      // Existing folder IDs and uploaded-file mappings are preserved.
+      const hasProjectRoot = data.structure.some(n => n && n.isProject);
+      if (!hasProjectRoot && data.structure.length) {
+        const categories = data.structure;
+        data.structure = [createProjectRoot('Project-1', categories)];
+      }
+    }
+
+    function getCategoryRoots() {
+      const roots = [];
+      state.currentStructure.forEach(root => {
+        if (root.isProject && root.children) {
+          roots.push(...root.children.filter(n => !n.isProject));
+        } else if (!root.isProject) {
+          roots.push(root);
+        }
+      });
+      return roots;
+    }
+
+    class AppState {
+      constructor() {
+        this.data = JSON.parse(localStorage.getItem('arief_data_v16') || 'null');
+        if (!this.data) {
+          this.data = {
+            structure: JSON.parse(JSON.stringify(defaultTemplate)),
+            files: {},          
+            createdAt: new Date().toISOString()
+          };
+        }
+        ensureProjectParent(this.data);
+        this.persist();
+        this.selectedFolder = null;
+        // Keep the tree branches open while navigating/re-rendering.
+        this.expandedNodes = new Set();
+        // Temporary folder clipboard used by Copy / Paste.
+        this.folderClipboard = null;
+        this.renameTarget = null;
+        this.selectedCategoryId = null;
+        this.projectFilterIds = [];
+        this.categoryChart = null;
+        this.previewFileId = null;
+      }
+
+      get currentStructure() { return this.data.structure; }
+      get files() { return this.data.files; }
+      set files(v) { this.data.files = v; }
+
+      persist() {
+        try {
+          localStorage.setItem('arief_data_v16', JSON.stringify(this.data));
+        } catch(e) {
+          console.warn('LocalStorage full', e);
+          alert('⚠️ Penyimpanan browser penuh. Hapus beberapa berkas lama untuk lanjut.');
+        }
+      }
+
+      findFolderById(folderId, nodes = null) {
+        if (nodes === null) nodes = this.currentStructure;
+        for (const node of nodes) {
+          if (node.id === folderId) return node;
+          if (node.children && node.children.length > 0) {
+            const found = this.findFolderById(folderId, node.children);
+            if (found) return found;
+          }
+        }
+        return null;
+      }
+
+      getNextNumber(parentNode, childPrefix) {
+        const existing = (parentNode.children || []).map(c => c.code || '');
+        let maxNum = 0;
+        existing.forEach(code => {
+          const match = code.match(new RegExp('^' + childPrefix + '\\d+$'));
+          if (match) {
+            const num = parseInt(code.substring(childPrefix.length), 10);
+            if (!isNaN(num) && num > maxNum) maxNum = num;
+          }
+        });
+        return maxNum + 1;
+      }
+
+      addProjectAsRoot(folderName) {
+        const existing = this.currentStructure.map(c => c.code || '');
+        let maxNum = 0;
+        existing.forEach(code => {
+          const match = code.match(/^P(\d+)$/);
+          if (match) {
+            const num = parseInt(match[1], 10);
+            if (!isNaN(num) && num > maxNum) maxNum = num;
+          }
+        });
+        const nextNum = maxNum + 1;
+        const newCode = 'P' + String(nextNum).padStart(2, '0');
+
+        const newFolder = {
+          id: 'prj_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+          code: newCode,
+          name: folderName,
+          isUserCreated: true,
+          isProject: true,
+          isTopLevel: true,
+          color: '#f97316',
+          createdAt: new Date().toISOString(),
+          children: []
+        };
+        this.currentStructure.push(newFolder);
+        this.persist();
+        return newFolder;
+      }
+
+      addFolderToCategory(categoryId, folderName, parentId = null) {
+        const cat = this.findFolderById(categoryId);
+        if (!cat || cat.isProject) return null;
+
+        let parentNode = cat;
+        if (parentId) {
+          const found = this.findFolderById(parentId, [cat]);
+          if (found) parentNode = found;
+        }
+
+        if (!parentNode.children) parentNode.children = [];
+
+        const prefix = cat.code || cat.id;
+        const nextNum = this.getNextNumber(parentNode, prefix);
+        const newCode = prefix + String(nextNum).padStart(2, '0');
+
+        const newFolder = {
+          id: 'fld_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+          code: newCode,
+          name: folderName,
+          isUserCreated: true,
+          isProject: false,
+          color: '#64748b',
+          createdAt: new Date().toISOString(),
+          children: []
+        };
+        parentNode.children.push(newFolder);
+        this.persist();
+        return newFolder;
+      }
+
+      getParentFolder(folderId, nodes = null, parent = null) {
+        if (nodes === null) nodes = this.currentStructure;
+        for (const node of nodes) {
+          if (node.id === folderId) return parent;
+          if (node.children && node.children.length) {
+            const found = this.getParentFolder(folderId, node.children, node);
+            if (found) return found;
+          }
+        }
+        return null;
+      }
+
+      getCategoryRoot(folderId) {
+        const walk = (nodes, root = null) => {
+          for (const node of nodes) {
+            const currentRoot = root || node;
+            if (node.id === folderId) return currentRoot;
+            if (node.children && node.children.length) {
+              const found = walk(node.children, currentRoot);
+              if (found) return found;
+            }
+          }
+          return null;
+        };
+        return walk(this.currentStructure);
+      }
+
+      addSubfolder(parentId, folderName) {
+        const parent = this.findFolderById(parentId);
+        if (!parent) return null;
+        if (!parent.children) parent.children = [];
+
+        const root = this.getCategoryRoot(parentId);
+        const isProjectParent = !!parent.isProject || (root && root.isProject);
+        let prefix;
+        let newCode;
+
+        if (isProjectParent) {
+          prefix = parent.code || (root && root.code) || 'P';
+          const nextNum = this.getNextNumber(parent, prefix + '-');
+          newCode = prefix + '-' + String(nextNum).padStart(2, '0');
+        } else {
+          prefix = (root && root.code) || parent.code || 'F';
+          const nextNum = this.getNextNumber(parent, prefix);
+          newCode = prefix + String(nextNum).padStart(2, '0');
+        }
+
+        const newFolder = {
+          id: 'fld_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+          code: newCode,
+          name: folderName,
+          isUserCreated: true,
+          isProject: false,
+          color: '#64748b',
+          createdAt: new Date().toISOString(),
+          children: []
+        };
+        parent.children.push(newFolder);
+        this.expandedNodes.add(parentId);
+        this.persist();
+        return newFolder;
+      }
+
+      copyFolderToClipboard(folderId) {
+        const source = this.findFolderById(folderId);
+        if (!source) return false;
+
+        const copiedFolder = JSON.parse(JSON.stringify(source));
+        const copiedFiles = {};
+        const collectFiles = (node) => {
+          if (Array.isArray(this.files[node.id]) && this.files[node.id].length) {
+            copiedFiles[node.id] = JSON.parse(JSON.stringify(this.files[node.id]));
+          }
+          (node.children || []).forEach(collectFiles);
+        };
+        collectFiles(source);
+
+        this.folderClipboard = {
+          sourceId: folderId,
+          folder: copiedFolder,
+          files: copiedFiles,
+          copiedAt: new Date().toISOString()
+        };
+        return true;
+      }
+
+      pasteFolderInto(targetId) {
+        if (!this.folderClipboard) return null;
+        const target = this.findFolderById(targetId);
+        if (!target) return null;
+
+        if (!target.children) target.children = [];
+
+        const clipboard = this.folderClipboard;
+        const source = clipboard.folder;
+        const idMap = {};
+        const now = () => new Date().toISOString();
+
+        // Create fresh IDs for the entire pasted tree and keep a map for files.
+        const makePaste = (node, isRootCopy = false) => {
+          const oldId = node.id;
+          const copy = JSON.parse(JSON.stringify(node));
+          const newId = 'fld_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+          idMap[oldId] = newId;
+          copy.id = newId;
+          copy.isUserCreated = true;
+          copy.isProject = false;
+          copy.isTopLevel = false;
+          copy.createdAt = now();
+          if (isRootCopy) {
+            const siblingNames = new Set((target.children || []).map(n => n.name));
+            const baseName = source.name || 'Folder';
+            let name = baseName + ' - Copy';
+            let counter = 2;
+            while (siblingNames.has(name)) {
+              name = baseName + ' - Copy (' + counter + ')';
+              counter++;
+            }
+            copy.name = name;
+          }
+          if (copy.children) copy.children = copy.children.map(child => makePaste(child, false));
+          return copy;
+        };
+
+        const pasted = makePaste(source, true);
+
+        // Generate the new folder code under the selected destination.
+        const root = this.getCategoryRoot(targetId);
+        const isProjectParent = !!target.isProject || (root && root.isProject);
+        if (isProjectParent) {
+          const prefix = target.code || (root && root.code) || 'P';
+          const nextNum = this.getNextNumber(target, prefix + '-');
+          pasted.code = prefix + '-' + String(nextNum).padStart(2, '0');
+        } else {
+          const prefix = (root && root.code) || target.code || 'F';
+          const nextNum = this.getNextNumber(target, prefix);
+          pasted.code = prefix + String(nextNum).padStart(2, '0');
+        }
+
+        target.children.push(pasted);
+        this.expandedNodes.add(target.id);
+
+        // Duplicate all files from the clipboard using fresh file IDs.
+        const newFiles = { ...this.files };
+        Object.entries(clipboard.files).forEach(([oldFolderId, originalFiles]) => {
+          const newFolderId = idMap[oldFolderId];
+          if (!newFolderId || !Array.isArray(originalFiles)) return;
+          newFiles[newFolderId] = originalFiles.map(file => ({
+            ...file,
+            id: 'file_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+            copiedFrom: file.id,
+            createdAt: now()
+          }));
+        });
+        this.files = newFiles;
+
+        this.persist();
+        return pasted;
+      }
+
+      renameFolder(folderId, newName, newCode) {
+        const folder = this.findFolderById(folderId);
+        if (!folder) return false;
+        folder.name = newName || folder.name;
+        if (newCode !== undefined) folder.code = newCode;
+        this.persist();
+        return true;
+      }
+
+      removeFolder(folderId) {
+        const rootIdx = this.currentStructure.findIndex(c => c.id === folderId);
+        if (rootIdx !== -1) {
+          this.currentStructure.splice(rootIdx, 1);
+          const files = { ...this.files };
+          delete files[folderId];
+          this.files = files;
+          this.persist();
+          return true;
+        }
+        const removeRecursive = (nodes) => {
+          for (let i = 0; i < nodes.length; i++) {
+            if (nodes[i].id === folderId) {
+              nodes.splice(i, 1);
+              return true;
+            }
+            if (nodes[i].children && nodes[i].children.length > 0) {
+              if (removeRecursive(nodes[i].children)) return true;
+            }
+          }
+          return false;
+        };
+        const removed = removeRecursive(this.currentStructure);
+        if (removed) {
+          const files = { ...this.files };
+          delete files[folderId];
+          this.files = files;
+          this.persist();
+        }
+        return removed;
+      }
+    }
+
+    const state = new AppState();
+
+    /* HELPERS */
+    function getAllNodes(nodes = null, parentColor = '#2563eb', categoryName = '', path = [], parentIsProject = false) {
+      if (nodes === null) nodes = state.currentStructure;
+      let list = [];
+      nodes.forEach(node => {
+        const isProject = node.isProject || parentIsProject;
+        const color = node.color || parentColor;
+        const catName = node.name || categoryName;
+        const currentPath = [...path, node.name];
+        const isLeaf = !node.children || node.children.length === 0;
+        list.push({ ...node, color, categoryName: catName, path: currentPath, isLeaf, isProject });
+        if (node.children && node.children.length > 0) {
+          list = list.concat(getAllNodes(node.children, color, catName, currentPath, isProject));
+        }
+      });
+      return list;
+    }
+
+    function getFlatNodeList() { return getAllNodes(state.currentStructure); }
+    function getLeafNodesList() { return getFlatNodeList().filter(n => n.isLeaf); }
+
+    function hasFiles(folderId) {
+      const arr = state.files[folderId];
+      return Array.isArray(arr) && arr.length > 0;
+    }
+
+    
+    function renderTree(nodes = null, parentEl = document.getElementById('treeContainer'), isRoot = true, parentIsProject = false) {
+      if (nodes === null) {
+        nodes = state.currentStructure;
+        if (isRoot && Array.isArray(app.projectFilterIds) && app.projectFilterIds.length > 0) {
+          const selectedIds = new Set(app.projectFilterIds);
+          nodes = nodes.filter(n => n && n.isProject && selectedIds.has(n.id));
+        }
+      }
+      if (isRoot) parentEl.innerHTML = '';
+
+      const ul = document.createElement('ul');
+      ul.className = isRoot ? 'space-y-1' : 'pl-4 mt-1 space-y-1 tree-line border-l border-slate-200 dark:border-slate-700 ml-2';
+
+      nodes.forEach(node => {
+        const li = document.createElement('li');
+        li.className = 'node-item';
+        li.dataset.id = node.id;
+
+        const isLeaf = !node.children || node.children.length === 0;
+        const uploaded = isLeaf && hasFiles(node.id);
+        const color = node.color || '#2563eb';
+        const canEdit = node.isUserCreated;
+        const isProject = node.isProject || parentIsProject;
+        const isTopLevel = node.isTopLevel;
+
+        const nodeBtn = document.createElement('div');
+        nodeBtn.className = `node-btn-inner group flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer text-xs transition-all duration-150 select-none hover:bg-slate-100 dark:hover:bg-slate-700/60 ${
+          state.selectedFolder && state.selectedFolder.id === node.id
+            ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-semibold shadow-sm'
+            : 'text-slate-700 dark:text-slate-300'
+        }`;
+
+        const leftDiv = document.createElement('div');
+        leftDiv.className = 'flex items-center space-x-2 min-w-0 flex-1';
+
+        if (!isLeaf) {
+          const toggleBtn = document.createElement('button');
+          toggleBtn.type = 'button';
+          toggleBtn.className = 'toggle-arrow-btn w-4 h-4 flex items-center justify-center rounded hover:bg-slate-200 dark:hover:bg-slate-600 flex-shrink-0 transition-colors';
+          toggleBtn.innerHTML = '<i class="fa-solid fa-chevron-right text-[10px] text-slate-400 transition-transform duration-200 toggle-arrow"></i>';
+          toggleBtn.onclick = (e) => { e.stopPropagation(); toggleBranch(li); };
+          leftDiv.appendChild(toggleBtn);
+        } else {
+          const leafDot = document.createElement('span');
+          leafDot.className = 'w-2 h-2 rounded-full flex-shrink-0 ml-1';
+          leafDot.style.backgroundColor = isProject ? '#f97316' : color;
+          leftDiv.appendChild(leafDot);
+        }
+
+        const icon = document.createElement('i');
+        if (isProject) {
+          icon.className = isLeaf
+            ? (uploaded ? 'fa-solid fa-folder text-orange-500' : 'fa-solid fa-folder text-orange-500')
+            : 'fa-solid fa-folder-closed text-orange-500 folder-icon';
+        } else if (isTopLevel) {
+          icon.className = isLeaf
+            ? 'fa-solid fa-folder text-slate-400'
+            : 'fa-solid fa-folder-closed text-slate-500 folder-icon';
+        } else {
+          icon.className = isLeaf
+            ? 'fa-solid fa-folder text-slate-400'
+            : 'fa-solid fa-folder-closed text-amber-500 folder-icon';
+        }
+        leftDiv.appendChild(icon);
+
+        const textSpan = document.createElement('span');
+        textSpan.className = 'truncate font-medium node-text';
+        textSpan.textContent = node.name;
+        leftDiv.appendChild(textSpan);
+
+        nodeBtn.appendChild(leftDiv);
+
+        const rightDiv = document.createElement('div');
+        rightDiv.className = 'flex items-center space-x-1 flex-shrink-0 ml-2';
+
+        if (canEdit) {
+          const actionsDiv = document.createElement('div');
+          actionsDiv.className = 'node-actions flex items-center gap-1 mr-1';
+
+          const editBtn = document.createElement('button');
+          editBtn.type = 'button';
+          editBtn.title = 'Rename folder';
+          editBtn.className = 'p-1 rounded bg-emerald-100 text-emerald-600 hover:bg-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-400 transition-colors';
+          editBtn.innerHTML = '<i class="fa-solid fa-pen text-[10px]"></i>';
+          editBtn.onclick = (e) => { e.stopPropagation(); app.openRenameFolderModal(node.id); };
+          actionsDiv.appendChild(editBtn);
+
+          const delBtn = document.createElement('button');
+          delBtn.type = 'button';
+          delBtn.title = 'Hapus folder';
+          delBtn.className = 'p-1 rounded bg-rose-100 text-rose-600 hover:bg-rose-200 dark:bg-rose-900/40 dark:text-rose-400 transition-colors';
+          delBtn.innerHTML = '<i class="fa-solid fa-trash text-[10px]"></i>';
+          delBtn.onclick = (e) => { e.stopPropagation(); app.confirmDeleteFolder(node.id, node.name); };
+          actionsDiv.appendChild(delBtn);
+
+          rightDiv.appendChild(actionsDiv);
+        }
+
+        if (!isLeaf) {
+          const countBadge = document.createElement('span');
+          countBadge.className = 'text-[10px] px-1.5 py-0.2 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-full font-mono';
+          countBadge.textContent = node.children.length;
+          rightDiv.appendChild(countBadge);
+        } else if (uploaded) {
+          const count = (state.files[node.id] || []).length;
+          const uploadBadge = document.createElement('span');
+          uploadBadge.className = 'text-[10px] px-1.5 py-0.5 bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 rounded-md font-medium flex items-center gap-1';
+          uploadBadge.innerHTML = `<i class="fa-solid fa-check text-[9px]"></i> ${count}`;
+          rightDiv.appendChild(uploadBadge);
+        }
+
+        nodeBtn.appendChild(rightDiv);
+
+        nodeBtn.onclick = (e) => {
+          e.stopPropagation();
+          app.selectFolder(node.id);
+          if (!isLeaf) {
+            const childrenContainer = li.querySelector('.children-tree');
+            if (childrenContainer && childrenContainer.classList.contains('hidden')) {
+              toggleBranch(li);
+            }
+          }
+        };
+
+        // Right-click opens the folder management menu.
+        nodeBtn.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          app.selectFolder(node.id);
+          app.openFolderContextMenu(node.id, e.clientX, e.clientY);
+        });
+
+        li.appendChild(nodeBtn);
+
+        if (!isLeaf) {
+          const childrenContainer = document.createElement('div');
+          // A selected folder keeps all of its parent branches expanded.
+          // expandedNodes also preserves branches that the user opened manually.
+          const shouldExpand = state.expandedNodes.has(node.id) ||
+            (isRoot && node.isProject);
+          childrenContainer.className = shouldExpand ? 'children-tree' : 'hidden children-tree';
+          renderTree(node.children, childrenContainer, false, isProject);
+
+          const arrow = nodeBtn.querySelector('.toggle-arrow');
+          const folderIcon = nodeBtn.querySelector('.folder-icon');
+          if (shouldExpand) {
+            if (arrow) arrow.style.transform = 'rotate(90deg)';
+            if (folderIcon) {
+              folderIcon.classList.remove('fa-folder-closed');
+              folderIcon.classList.add('fa-folder-open');
+            }
+          }
+          li.appendChild(childrenContainer);
+        }
+
+        ul.appendChild(li);
+      });
+
+      parentEl.appendChild(ul);
+    }
+
+    function toggleBranch(li) {
+      const children = li.querySelector('.children-tree');
+      const arrow = li.querySelector('.toggle-arrow');
+      const folderIcon = li.querySelector('.folder-icon');
+      if (children) {
+        const isOpen = !children.classList.contains('hidden');
+        const nodeId = li.dataset.id;
+        if (isOpen) {
+          children.classList.add('hidden');
+          state.expandedNodes.delete(nodeId);
+          if (arrow) arrow.style.transform = 'rotate(0deg)';
+          if (folderIcon) {
+            folderIcon.classList.remove('fa-folder-open');
+            folderIcon.classList.add('fa-folder-closed');
+          }
+        } else {
+          children.classList.remove('hidden');
+          state.expandedNodes.add(nodeId);
+          if (arrow) arrow.style.transform = 'rotate(90deg)';
+          if (folderIcon) {
+            folderIcon.classList.remove('fa-folder-closed');
+            folderIcon.classList.add('fa-folder-open');
+          }
+        }
+      }
+    }
+
+    
+    window.app = {
+
+      init() {
+        if (localStorage.getItem('arief_theme') === 'dark') {
+          document.documentElement.classList.add('dark');
+        }
+        renderTree();
+        this.updateOverviewStats();
+        this.renderCategoryChart();
+        this.renderDisciplineList();
+        this.setupEventListeners();
+        this.showDashboardOverview();
+      },
+
+      setupEventListeners() {
+        const searchInput = document.getElementById('treeSearchInput');
+        const clearBtn = document.getElementById('clearSearchBtn');
+
+        searchInput.addEventListener('input', (e) => {
+          const q = e.target.value.trim().toLowerCase();
+          clearBtn.classList.toggle('hidden', !q);
+          this.filterTree(q);
+        });
+        clearBtn.addEventListener('click', () => {
+          searchInput.value = '';
+          clearBtn.classList.add('hidden');
+          this.filterTree('');
+        });
+
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebarOverlay');
+        document.getElementById('mobileMenuBtn').addEventListener('click', () => {
+          sidebar.classList.add('open');
+          overlay.classList.remove('hidden');
+        });
+        document.getElementById('toggleSidebarMobile').addEventListener('click', () => {
+          sidebar.classList.remove('open');
+          overlay.classList.add('hidden');
+        });
+        overlay.addEventListener('click', () => {
+          sidebar.classList.remove('open');
+          overlay.classList.add('hidden');
+        });
+
+        document.getElementById('themeToggle').addEventListener('click', () => {
+          document.documentElement.classList.toggle('dark');
+          const isDark = document.documentElement.classList.contains('dark');
+          localStorage.setItem('arief_theme', isDark ? 'dark' : 'light');
+        });
+
+        document.getElementById('addNewBtn').addEventListener('click', () => this.openChoiceModal());
+        document.getElementById('closeChoiceModalBtn').addEventListener('click', () => this.closeChoiceModal());
+        document.querySelectorAll('#choiceModal .option-card').forEach(card => {
+          card.addEventListener('click', () => this.handleChoice(card.dataset.choice));
+        });
+
+        document.getElementById('closeProjectModalBtn').addEventListener('click', () => this.closeProjectModal());
+        document.getElementById('cancelProjectBtn').addEventListener('click', () => this.closeProjectModal());
+        document.getElementById('confirmProjectBtn').addEventListener('click', () => this.submitNewProject());
+
+        document.getElementById('closeFolderModalBtn').addEventListener('click', () => this.closeFolderModal());
+        document.getElementById('cancelFolderBtn').addEventListener('click', () => this.closeFolderModal());
+        document.getElementById('confirmFolderBtn').addEventListener('click', () => this.submitNewFolder());
+
+        document.getElementById('closeRenameModalBtn').addEventListener('click', () => this.closeRenameModal());
+        document.getElementById('cancelRenameBtn').addEventListener('click', () => this.closeRenameModal());
+        document.getElementById('confirmRenameBtn').addEventListener('click', () => this.submitRename());
+
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('fileInput');
+        if (dropzone && fileInput) {
+          dropzone.addEventListener('click', () => fileInput.click());
+          dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('border-blue-500'); });
+          dropzone.addEventListener('dragleave', () => dropzone.classList.remove('border-blue-500'));
+          dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('border-blue-500');
+            if (e.dataTransfer.files.length) this.handleFiles(Array.from(e.dataTransfer.files));
+          });
+          fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) this.handleFiles(Array.from(e.target.files));
+            e.target.value = '';
+          });
+        }
+      },
+
+    
+      contextMenuFolderId: null,
+
+      openFolderContextMenu(folderId, x, y) {
+        const folder = state.findFolderById(folderId);
+        if (!folder) return;
+        const menu = document.getElementById('folderContextMenu');
+        this.contextMenuFolderId = folderId;
+        document.getElementById('contextMenuTitle').textContent = folder.name || 'Folder';
+        menu.classList.remove('hidden');
+
+        // Paste is available whenever a folder has previously been copied.
+        const pasteBtn = document.getElementById('ctxPaste');
+        if (pasteBtn) {
+          pasteBtn.disabled = !state.folderClipboard;
+          pasteBtn.classList.toggle('opacity-40', !state.folderClipboard);
+          pasteBtn.classList.toggle('cursor-not-allowed', !state.folderClipboard);
+        }
+
+        const menuWidth = 210;
+        const menuHeight = 235;
+        const left = Math.min(x, window.innerWidth - menuWidth - 8);
+        const top = Math.min(y, window.innerHeight - menuHeight - 8);
+        menu.style.left = Math.max(8, left) + 'px';
+        menu.style.top = Math.max(8, top) + 'px';
+      },
+
+      closeFolderContextMenu() {
+        const menu = document.getElementById('folderContextMenu');
+        if (menu) menu.classList.add('hidden');
+        this.contextMenuFolderId = null;
+      },
+
+      createSubfolderFromContext() {
+        const parentId = this.contextMenuFolderId;
+        this.closeFolderContextMenu();
+        if (!parentId) return;
+        const parent = state.findFolderById(parentId);
+        if (!parent) return;
+        const name = prompt('Nama subfolder baru:', 'New Folder');
+        if (name === null) return;
+        const cleanName = name.trim();
+        if (!cleanName) { alert('Nama folder tidak boleh kosong!'); return; }
+        const newFolder = state.addSubfolder(parentId, cleanName);
+        if (newFolder) {
+          state.expandedNodes.add(parentId);
+          renderTree();
+          this.updateOverviewStats();
+          this.selectFolder(newFolder.id);
+        }
+      },
+
+      copyFolderFromContext() {
+        const folderId = this.contextMenuFolderId;
+        this.closeFolderContextMenu();
+        if (!folderId) return;
+        const folder = state.findFolderById(folderId);
+        if (!folder) return;
+        if (state.copyFolderToClipboard(folderId)) {
+          // Keep the selected source folder active; nothing is duplicated yet.
+          state.selectedFolder = folder;
+          alert(`Folder copied: "${folder.name}". Right-click the destination folder and choose Paste.`);
+        }
+      },
+
+      pasteFolderFromContext() {
+        const targetId = this.contextMenuFolderId;
+        this.closeFolderContextMenu();
+        if (!targetId) return;
+        if (!state.folderClipboard) {
+          alert('Belum ada folder yang di-Copy.');
+          return;
+        }
+        const target = state.findFolderById(targetId);
+        if (!target) return;
+        const pasted = state.pasteFolderInto(targetId);
+        if (pasted) {
+          renderTree();
+          this.updateOverviewStats();
+          this.selectFolder(pasted.id);
+          alert(`Folder berhasil di-Paste ke "${target.name}": "${pasted.name}"`);
+        }
+      },
+
+      renameFromContext() {
+        const folderId = this.contextMenuFolderId;
+        this.closeFolderContextMenu();
+        if (folderId) this.openRenameFolderModal(folderId);
+      },
+
+      deleteFromContext() {
+        const folderId = this.contextMenuFolderId;
+        this.closeFolderContextMenu();
+        if (!folderId) return;
+        const folder = state.findFolderById(folderId);
+        if (folder) this.confirmDeleteFolder(folder.id, folder.name);
+      },
+
+      openChoiceModal() { document.getElementById('choiceModal').classList.remove('hidden'); },
+      closeChoiceModal() { document.getElementById('choiceModal').classList.add('hidden'); },
+      handleChoice(choice) {
+        this.closeChoiceModal();
+        if (choice === 'project') {
+          document.getElementById('newProjectName').value = '';
+          document.getElementById('projectModal').classList.remove('hidden');
+          setTimeout(() => document.getElementById('newProjectName').focus(), 100);
+        } else if (choice === 'project-filter') {
+          this.openFolderModal();
+        }
+      },
+      closeProjectModal() { document.getElementById('projectModal').classList.add('hidden'); },
+      submitNewProject() {
+        const name = document.getElementById('newProjectName').value.trim();
+        if (!name) { alert('Nama project tidak boleh kosong!'); return; }
+        const newFolder = state.addProjectAsRoot(name);
+        if (newFolder) {
+          this.closeProjectModal();
+          renderTree();
+          this.updateOverviewStats();
+          this.renderCategoryChart();
+          this.renderDisciplineList();
+          this.selectFolder(newFolder.id);
+          if (typeof confetti === 'function') confetti({ particleCount: 80, spread: 60, origin: { y: 0.7 } });
+        }
+      },
+      openFolderModal() {
+        document.getElementById('folderModal').classList.remove('hidden');
+        this.renderProjectPicker();
+      },
+      closeFolderModal() { document.getElementById('folderModal').classList.add('hidden'); },
+      renderProjectPicker() {
+        const box = document.getElementById('projectPicker');
+        if (!box) return;
+        const projects = state.currentStructure.filter(n => n && n.isProject);
+        const selected = new Set(Array.isArray(this.projectFilterIds) ? this.projectFilterIds : []);
+        box.innerHTML = '';
+
+        if (!projects.length) {
+          box.innerHTML = '<div class="px-3 py-3 text-xs text-slate-400 text-center">Belum ada project.</div>';
+        } else {
+          projects.forEach(project => {
+            const row = document.createElement('label');
+            row.className = 'flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-white dark:hover:bg-slate-600/70 transition-colors';
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.className = 'project-filter-checkbox w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500';
+            cb.value = project.id;
+            cb.checked = selected.has(project.id);
+            cb.addEventListener('change', () => this.updateProjectFilterCount());
+            const icon = document.createElement('i');
+            icon.className = 'fa-solid fa-folder text-orange-500';
+            const text = document.createElement('span');
+            text.className = 'text-sm text-slate-700 dark:text-slate-200 font-medium truncate';
+            text.textContent = (project.code ? project.code + ' — ' : '') + project.name;
+            row.appendChild(cb); row.appendChild(icon); row.appendChild(text);
+            box.appendChild(row);
+          });
+        }
+        const allBtn = document.getElementById('toggleAllProjectsBtn');
+        if (allBtn) {
+          allBtn.onclick = () => {
+            const checkboxes = [...document.querySelectorAll('.project-filter-checkbox')];
+            const allChecked = checkboxes.length > 0 && checkboxes.every(cb => cb.checked);
+            checkboxes.forEach(cb => { cb.checked = !allChecked; });
+            this.updateProjectFilterCount();
+          };
+        }
+        this.updateProjectFilterCount();
+      },
+      updateProjectFilterCount() {
+        const countEl = document.getElementById('projectFilterCount');
+        const checkboxes = [...document.querySelectorAll('.project-filter-checkbox')];
+        const count = checkboxes.filter(cb => cb.checked).length;
+        if (countEl) countEl.textContent = count ? `${count} project dipilih` : 'Semua project';
+        const allBtn = document.getElementById('toggleAllProjectsBtn');
+        if (allBtn) allBtn.textContent = checkboxes.length > 0 && count === checkboxes.length ? 'Hapus Semua' : 'Pilih Semua';
+      },
+      submitNewFolder() {
+        const projectIds = [...document.querySelectorAll('.project-filter-checkbox:checked')].map(cb => cb.value);
+        this.projectFilterIds = projectIds;
+        this.closeFolderModal();
+        renderTree();
+        if (projectIds.length === 1) {
+          const project = state.findFolderById(projectIds[0]);
+          if (project) this.selectFolder(project.id);
+        }
+      },
+      openRenameFolderModal(folderId) {
+        const folder = state.findFolderById(folderId);
+        if (!folder) return;
+        this.renameTarget = folderId;
+        document.getElementById('renameName').value = folder.name || '';
+        document.getElementById('renameCode').value = folder.code || '';
+        document.getElementById('renameModal').classList.remove('hidden');
+        setTimeout(() => document.getElementById('renameName').focus(), 100);
+      },
+      closeRenameModal() {
+        document.getElementById('renameModal').classList.add('hidden');
+        this.renameTarget = null;
+      },
+      submitRename() {
+        if (!this.renameTarget) return;
+        const name = document.getElementById('renameName').value.trim();
+        const code = document.getElementById('renameCode').value.trim();
+        if (!name) { alert('Nama tidak boleh kosong!'); return; }
+        state.renameFolder(this.renameTarget, name, code || undefined);
+        this.closeRenameModal();
+        renderTree();
+        if (state.selectedFolder && state.selectedFolder.id === this.renameTarget) {
+          this.selectFolder(this.renameTarget);
+        }
+      },
+      confirmDeleteFolder(folderId, folderName) {
+        if (!confirm(`Hapus folder "${folderName}"? Semua sub-folder dan berkas di dalamnya akan ikut terhapus.`)) return;
+        state.removeFolder(folderId);
+        if (state.selectedFolder && state.selectedFolder.id === folderId) {
+          state.selectedFolder = null;
+          this.showDashboardOverview();
+        }
+        renderTree();
+        this.updateOverviewStats();
+        this.renderCategoryChart();
+        this.renderDisciplineList();
+      },
+
+     
+      selectFolder(folderId) {
+        const folder = state.findFolderById(folderId);
+        if (!folder) return;
+        state.selectedFolder = folder;
+        document.getElementById('overviewTab').classList.add('hidden');
+        document.getElementById('folderWorkspaceTab').classList.remove('hidden');
+
+        const isLeaf = !folder.children || folder.children.length === 0;
+        const pathNodes = this.getPathToFolder(folderId);
+        const pathStr = '/' + pathNodes.map(n => n.name).join(' / ');
+
+        // Keep the complete path to the selected folder expanded after every
+        // tree re-render, so navigation never jumps back to the main folder.
+        pathNodes.forEach(n => {
+          if (n.children && n.children.length) state.expandedNodes.add(n.id);
+        });
+
+        document.getElementById('folderTitle').textContent = folder.name;
+        document.getElementById('folderPathText').textContent = pathStr;
+        document.getElementById('breadcrumbCurrent').textContent = folder.name;
+
+        const catBadge = document.getElementById('folderCategoryBadge');
+        const typeBadge = document.getElementById('folderTypeBadge');
+        const rootCat = pathNodes[0];
+        catBadge.textContent = rootCat ? rootCat.name : 'Kategori';
+        catBadge.style.backgroundColor = rootCat?.color || '#2563eb';
+
+        if (folder.isProject) {
+          typeBadge.textContent = '🟠 Project';
+          typeBadge.className = 'px-2.5 py-0.5 rounded-full text-xs font-semibold bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300';
+        } else if (folder.isTopLevel) {
+          typeBadge.textContent = '📁 Folder Root';
+          typeBadge.className = 'px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300';
+        } else {
+          typeBadge.textContent = '📁 Folder';
+          typeBadge.className = 'px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300';
+        }
+
+        if (isLeaf) {
+          document.getElementById('leafUploadSection').classList.remove('hidden');
+          document.getElementById('parentFolderSection').classList.add('hidden');
+          this.renderFiles(folderId);
+        } else {
+          document.getElementById('leafUploadSection').classList.add('hidden');
+          document.getElementById('parentFolderSection').classList.remove('hidden');
+          this.renderSubfolders(folder.children);
+        }
+
+        renderTree();
+      },
+
+      getPathToFolder(folderId, nodes = null, path = []) {
+        if (nodes === null) nodes = state.currentStructure;
+        for (const node of nodes) {
+          const newPath = [...path, node];
+          if (node.id === folderId) return newPath;
+          if (node.children && node.children.length) {
+            const found = this.getPathToFolder(folderId, node.children, newPath);
+            if (found) return found;
+          }
+        }
+        return null;
+      },
+
+      renderSubfolders(children) {
+        const grid = document.getElementById('subfoldersGrid');
+        grid.innerHTML = '';
+        if (!children || !children.length) {
+          grid.innerHTML = '<p class="text-xs text-slate-400 italic col-span-full">Belum ada sub-folder.</p>';
+          return;
+        }
+        children.forEach(child => {
+          const card = document.createElement('div');
+          card.className = 'glass-card p-4 rounded-xl shadow-sm border hover:shadow-md transition-all cursor-pointer flex items-start gap-3';
+          const isProject = child.isProject;
+          const iconColor = isProject ? 'text-orange-500' : (child.isTopLevel ? 'text-slate-500' : 'text-amber-500');
+          const iconClass = child.children && child.children.length ? 'fa-folder-closed' : 'fa-folder';
+          card.innerHTML = `
+            <div class="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
+              <i class="fa-solid ${iconClass} ${iconColor} text-lg"></i>
+            </div>
+            <div class="min-w-0 flex-1">
+              <p class="font-semibold text-sm text-slate-800 dark:text-slate-100 truncate">${child.name}</p>
+              <p class="text-[11px] text-slate-400 font-mono">${child.code || ''}</p>
+              ${child.children && child.children.length ? `<p class="text-[11px] text-slate-500 mt-1">${child.children.length} sub-folder</p>` : '<p class="text-[11px] text-emerald-600 mt-1">Leaf folder</p>'}
+            </div>
+          `;
+          card.onclick = () => this.selectFolder(child.id);
+          grid.appendChild(card);
+        });
+      },
+
+      
+      handleFiles(files) {
+        if (!state.selectedFolder) return;
+        const folderId = state.selectedFolder.id;
+        const maxSize = 25 * 1024 * 1024; 
+
+        let processed = 0;
+        const total = files.length;
+        const newRecords = [];
+
+        files.forEach(file => {
+          if (file.size > maxSize) {
+            alert(`⚠️ File "${file.name}" melebihi 25MB dan dilewati.`);
+            processed++;
+            return;
+          }
+          const meta = getFileMeta(file.name);
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const dataUrl = e.target.result;
+            const record = {
+              id: 'file_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+              name: file.name,
+              size: file.size,
+              type: file.type || 'unknown',
+              ext: (file.name.split('.').pop() || '').toLowerCase(),
+              cat: meta.cat,
+              dataUrl: dataUrl,
+              uploadedAt: new Date().toISOString()
+            };
+            newRecords.push(record);
+
+            if (!state.files[folderId]) state.files[folderId] = [];
+            state.files[folderId].push(record);
+            state.persist();
+
+            processed++;
+            if (processed === total) {
+              this.renderFiles(folderId);
+              renderTree();
+              this.updateOverviewStats();
+              this.renderCategoryChart();
+              this.renderRecentUploads();
+              if (typeof confetti === 'function') confetti({ particleCount: 60, spread: 50, origin: { y: 0.6 } });
+            }
+          };
+          reader.readAsDataURL(file);
+        });
+      },
+
+      renderFiles(folderId) {
+        const arr = state.files[folderId] || [];
+        const listSection = document.getElementById('fileListSection');
+        const previewSection = document.getElementById('filePreviewSection');
+        const grid = document.getElementById('filesGrid');
+        const countBadge = document.getElementById('fileCountBadge');
+
+        countBadge.textContent = arr.length;
+
+        if (!arr.length) {
+          listSection.classList.add('hidden');
+          previewSection.classList.add('hidden');
+          return;
+        }
+        listSection.classList.remove('hidden');
+        previewSection.classList.add('hidden');
+        this.previewFileId = null;
+
+        grid.innerHTML = '';
+        arr.forEach(file => {
+          const meta = getFileMeta(file.name);
+          const card = document.createElement('div');
+          card.className = 'file-card glass-card p-4 rounded-xl shadow-sm border cursor-pointer flex items-start gap-3';
+          card.innerHTML = `
+            <div class="w-12 h-12 rounded-lg bg-slate-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
+              <i class="fa-solid ${meta.icon} ${meta.color} text-2xl"></i>
+            </div>
+            <div class="min-w-0 flex-1">
+              <p class="font-semibold text-sm text-slate-800 dark:text-slate-100 truncate" title="${file.name}">${file.name}</p>
+              <p class="text-[11px] text-slate-400">${formatBytes(file.size)} • ${file.ext.toUpperCase()}</p>
+              <p class="text-[10px] text-slate-400 mt-1">${new Date(file.uploadedAt).toLocaleString('id-ID')}</p>
+            </div>
+            <div class="flex flex-col gap-1 flex-shrink-0">
+              <button class="p-1.5 rounded bg-blue-100 text-blue-600 hover:bg-blue-200 dark:bg-blue-900/40 dark:text-blue-400 transition-colors" title="Download" onclick="event.stopPropagation(); app.downloadFile('${folderId}','${file.id}')">
+                <i class="fa-solid fa-download text-xs"></i>
+              </button>
+              <button class="p-1.5 rounded bg-rose-100 text-rose-600 hover:bg-rose-200 dark:bg-rose-900/40 dark:text-rose-400 transition-colors" title="Hapus" onclick="event.stopPropagation(); app.deleteFile('${folderId}','${file.id}')">
+                <i class="fa-solid fa-trash text-xs"></i>
+              </button>
+            </div>
+          `;
+          card.onclick = () => this.showPreview(folderId, file.id);
+          grid.appendChild(card);
+        });
+      },
+
+      showPreview(folderId, fileId) {
+        const file = (state.files[folderId] || []).find(f => f.id === fileId);
+        if (!file) return;
+        this.previewFileId = fileId;
+        const previewSection = document.getElementById('filePreviewSection');
+        const container = document.getElementById('previewContainer');
+        document.getElementById('previewFileName').textContent = file.name;
+        previewSection.classList.remove('hidden');
+
+        let html = '';
+        if (file.cat === 'image') {
+          html = `<div class="text-center"><img src="${file.dataUrl}" alt="${file.name}" class="max-w-full max-h-[600px] mx-auto rounded-lg shadow-md" /></div>`;
+        } else if (file.cat === 'pdf') {
+          html = `<iframe src="${file.dataUrl}" class="w-full rounded-lg" style="height:600px;" title="${file.name}"></iframe>`;
+        } else if (file.cat === 'excel') {
+          
+          try {
+            const base64 = file.dataUrl.split(',')[1];
+            const binary = atob(base64);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+            const wb = XLSX.read(bytes, { type: 'array' });
+            const sheetName = wb.SheetNames[0];
+            const ws = wb.Sheets[sheetName];
+            const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+            const header = rows[0] || [];
+            const body = rows.slice(1, 51);
+            html = `<div class="mb-2 text-xs text-slate-500">Sheet: <strong>${sheetName}</strong> • Menampilkan ${body.length} dari ${rows.length - 1} baris</div>`;
+            html += '<div class="overflow-auto max-h-[550px]"><table class="w-full text-xs border-collapse">';
+            html += '<thead class="bg-slate-100 dark:bg-slate-700 sticky top-0">';
+            html += '<tr>' + header.map(h => `<th class="p-2 border border-slate-200 dark:border-slate-600 text-left font-semibold">${String(h||'')}</th>`).join('') + '</tr></thead><tbody>';
+            body.forEach(row => {
+              html += '<tr>' + header.map((_, i) => `<td class="p-2 border border-slate-200 dark:border-slate-600">${String(row[i]??'')}</td>`).join('') + '</tr>';
+            });
+            html += '</tbody></table></div>';
+          } catch (err) {
+            html = `<p class="text-rose-500 text-sm">Gagal membaca Excel: ${err.message}</p>`;
+          }
+        } else if (file.cat === 'text') {
+          try {
+            const base64 = file.dataUrl.split(',')[1];
+            const text = decodeURIComponent(escape(atob(base64)));
+            html = `<pre class="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg overflow-auto max-h-[600px] text-xs whitespace-pre-wrap">${text.replace(/</g,'&lt;')}</pre>`;
+          } catch (err) {
+            html = `<p class="text-rose-500 text-sm">Gagal membaca teks: ${err.message}</p>`;
+          }
+        } else {
+          html = `
+            <div class="text-center py-8">
+              <i class="fa-solid ${getFileMeta(file.name).icon} ${getFileMeta(file.name).color} text-6xl mb-4"></i>
+              <p class="text-sm text-slate-600 dark:text-slate-300 mb-1">Preview tidak tersedia untuk tipe ini</p>
+              <p class="text-xs text-slate-400 mb-4">${file.name} • ${formatBytes(file.size)}</p>
+              <button onclick="app.downloadFile('${folderId}','${file.id}')" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg">
+                <i class="fa-solid fa-download"></i> Download File
+              </button>
+            </div>
+          `;
+        }
+        container.innerHTML = html;
+        previewSection.scrollIntoView({ behavior: 'smooth' });
+      },
+
+      closePreview() {
+        document.getElementById('filePreviewSection').classList.add('hidden');
+        this.previewFileId = null;
+      },
+
+      downloadFile(folderId, fileId) {
+        const file = (state.files[folderId] || []).find(f => f.id === fileId);
+        if (!file) return;
+        const a = document.createElement('a');
+        a.href = file.dataUrl;
+        a.download = file.name;
+        a.click();
+      },
+
+      deleteFile(folderId, fileId) {
+        if (!confirm('Hapus berkas ini?')) return;
+        state.files[folderId] = (state.files[folderId] || []).filter(f => f.id !== fileId);
+        if (state.files[folderId].length === 0) delete state.files[folderId];
+        state.persist();
+        this.renderFiles(folderId);
+        renderTree();
+        this.updateOverviewStats();
+        this.renderCategoryChart();
+        this.renderRecentUploads();
+      },
+
+      clearAllFiles() {
+        if (!confirm('Hapus SEMUA berkas yang sudah diupload?')) return;
+        state.files = {};
+        state.persist();
+        if (state.selectedFolder) this.renderFiles(state.selectedFolder.id);
+        renderTree();
+        this.updateOverviewStats();
+        this.renderCategoryChart();
+        this.renderRecentUploads();
+      },
+
+     
+      showDashboardOverview() {
+        state.selectedFolder = null;
+        document.getElementById('overviewTab').classList.remove('hidden');
+        document.getElementById('folderWorkspaceTab').classList.add('hidden');
+        document.getElementById('breadcrumbCurrent').textContent = 'Overview';
+        renderTree();
+        this.updateOverviewStats();
+        this.renderCategoryChart();
+        this.renderDisciplineList();
+        this.renderRecentUploads();
+      },
+
+      updateOverviewStats() {
+        const leaves = getLeafNodesList();
+        const totalLeaf = leaves.length;
+        const filesObj = state.files || {};
+        let totalFiles = 0;
+        let totalSize = 0;
+        Object.values(filesObj).forEach(arr => {
+          arr.forEach(f => { totalFiles++; totalSize += f.size || 0; });
+        });
+        document.getElementById('statTotalLeaf').textContent = totalLeaf;
+        document.getElementById('statTotalFiles').textContent = totalFiles;
+        document.getElementById('statTotalSize').textContent = formatBytes(totalSize);
+        const foldersWithFiles = Object.keys(filesObj).filter(k => filesObj[k].length > 0).length;
+        const percent = totalLeaf ? Math.round((foldersWithFiles / totalLeaf) * 100) : 0;
+        document.getElementById('statPercentDone').textContent = percent + '% Lengkap';
+        document.getElementById('statTotalCategories').textContent = getCategoryRoots().length;
+      },
+
+      renderCategoryChart() {
+        const canvas = document.getElementById('categoryChart');
+        if (!canvas) return;
+        const labels = [];
+        const values = [];
+        getCategoryRoots().forEach(cat => {
+          const catLeaves = getAllNodes([cat]).filter(n => n.isLeaf);
+          const filled = catLeaves.filter(n => hasFiles(n.id)).length;
+          const pct = catLeaves.length ? Math.round((filled / catLeaves.length) * 100) : 0;
+          labels.push(cat.name.replace(/^\d+\.\s*/, '').replace(/^[A-Z]\.\s*/, ''));
+          values.push(pct);
+        });
+        if (state.categoryChart) state.categoryChart.destroy();
+        state.categoryChart = new Chart(canvas.getContext('2d'), {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Kelengkapan (%)',
+              data: values,
+              backgroundColor: ['#f39c12','#27ae60','#2980b9','#8e44ad','#f1c40f','#e74c3c','#7f8c8d','#16a085','#3498db','#9b59b6','#f97316','#64748b'],
+              borderRadius: 6
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+              y: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%' } },
+              x: { ticks: { font: { size: 10 } } }
+            }
+          }
+        });
+      },
+
+      renderDisciplineList() {
+        const list = document.getElementById('disciplineList');
+        if (!list) return;
+        list.innerHTML = '';
+        getCategoryRoots().forEach(cat => {
+          const catLeaves = getAllNodes([cat]).filter(n => n.isLeaf);
+          const filled = catLeaves.filter(n => hasFiles(n.id)).length;
+          const pct = catLeaves.length ? Math.round((filled / catLeaves.length) * 100) : 0;
+          const item = document.createElement('button');
+          item.className = 'w-full text-left p-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/60 transition-colors';
+          item.innerHTML = `
+            <div class="flex items-center gap-3">
+              <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background:${cat.color || '#2563eb'}"></span>
+              <div class="flex-1 min-w-0">
+                <p class="text-xs font-semibold text-slate-800 dark:text-slate-100 truncate">${cat.name}</p>
+                <p class="text-[10px] text-slate-400">${filled}/${catLeaves.length} folder • ${pct}%</p>
+              </div>
+              <i class="fa-solid fa-chevron-right text-slate-300 text-xs"></i>
+            </div>
+          `;
+          item.onclick = () => this.selectFolder(cat.id);
+          list.appendChild(item);
+        });
+      },
+
+      renderRecentUploads() {
+        const tbody = document.getElementById('recentUploadsTbody');
+        if (!tbody) return;
+        const allFiles = [];
+        Object.entries(state.files || {}).forEach(([folderId, arr]) => {
+          arr.forEach(f => allFiles.push({ folderId, ...f }));
+        });
+        if (!allFiles.length) {
+          tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-slate-400 italic">Belum ada berkas yang diupload.</td></tr>';
+          return;
+        }
+        allFiles.sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
+        tbody.innerHTML = allFiles.slice(0, 20).map(file => {
+          const folder = state.findFolderById(file.folderId);
+          const folderName = folder ? folder.name : '(folder terhapus)';
+          const meta = getFileMeta(file.name);
+          return `
+            <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/60">
+              <td class="p-3.5 font-medium text-slate-800 dark:text-slate-200">${folderName}</td>
+              <td class="p-3.5"><i class="fa-solid ${meta.icon} ${meta.color} mr-1"></i>${file.name}</td>
+              <td class="p-3.5 uppercase text-[10px] font-semibold text-slate-500">${file.ext}</td>
+              <td class="p-3.5">${formatBytes(file.size)}</td>
+              <td class="p-3.5 text-slate-400">${new Date(file.uploadedAt).toLocaleString('id-ID')}</td>
+              <td class="p-3.5 text-right">
+                <button onclick="app.selectFolder('${file.folderId}')" class="text-blue-600 hover:text-blue-800 dark:text-blue-400 text-xs font-semibold">
+                  <i class="fa-solid fa-eye"></i> Lihat
+                </button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      },
+
+     
+      focusTreeSearch() {
+        document.getElementById('treeSearchInput').focus();
+        document.getElementById('treeSearchInput').scrollIntoView({ behavior: 'smooth' });
+      },
+      filterTree(query) {
+        const q = query.trim().toLowerCase();
+        const items = document.querySelectorAll('#treeContainer .node-item');
+        let matches = 0;
+        if (!q) {
+          items.forEach(li => {
+            li.style.display = '';
+            const childWrap = li.querySelector('.children-tree');
+            if (childWrap) childWrap.classList.add('hidden');
+          });
+          document.querySelectorAll('.toggle-arrow').forEach(a => a.style.transform = 'rotate(0deg)');
+          document.getElementById('treeMatchCount').textContent = '';
+          return;
+        }
+        items.forEach(li => {
+          const text = li.querySelector('.node-text')?.textContent.toLowerCase() || '';
+          if (text.includes(q)) {
+            li.style.display = '';
+            matches++;
+            let parent = li.parentElement;
+            while (parent && parent.id !== 'treeContainer') {
+              if (parent.classList && parent.classList.contains('children-tree')) {
+                parent.classList.remove('hidden');
+                const pLi = parent.closest('.node-item');
+                if (pLi) pLi.style.display = '';
+                const arrow = pLi?.querySelector('.toggle-arrow');
+                if (arrow) arrow.style.transform = 'rotate(90deg)';
+              }
+              parent = parent.parentElement;
+            }
+          } else {
+            li.style.display = 'none';
+          }
+        });
+        document.getElementById('treeMatchCount').textContent = `${matches} hasil`;
+      }
+    };
+
+  
+    document.addEventListener('DOMContentLoaded', () => {
+      app.init();
+
+      document.getElementById('ctxCreate').addEventListener('click', () => app.createSubfolderFromContext());
+      document.getElementById('ctxRename').addEventListener('click', () => app.renameFromContext());
+      document.getElementById('ctxCopy').addEventListener('click', () => app.copyFolderFromContext());
+      document.getElementById('ctxPaste').addEventListener('click', () => app.pasteFolderFromContext());
+      document.getElementById('ctxDelete').addEventListener('click', () => app.deleteFromContext());
+
+      document.addEventListener('click', (e) => {
+        const menu = document.getElementById('folderContextMenu');
+        if (menu && !menu.contains(e.target)) app.closeFolderContextMenu();
+      });
+      document.addEventListener('scroll', () => app.closeFolderContextMenu(), true);
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') app.closeFolderContextMenu();
+      });
+    });
+  </script>
+
+  <!-- Folder right-click context menu -->
+  <div id="folderContextMenu" class="hidden fixed z-[9999] min-w-[210px] rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-2xl py-1 text-sm">
+    <div id="contextMenuTitle" class="px-3 py-2 text-[11px] font-semibold text-slate-400 uppercase tracking-wide truncate border-b border-slate-100 dark:border-slate-700"></div>
+    <button id="ctxCreate" type="button" class="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200">
+      <i class="fa-solid fa-folder-plus w-4 text-blue-500"></i><span>Create Subfolder</span>
+    </button>
+    <button id="ctxRename" type="button" class="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200">
+      <i class="fa-solid fa-pen w-4 text-emerald-500"></i><span>Rename</span>
+    </button>
+    <button id="ctxCopy" type="button" class="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200">
+      <i class="fa-solid fa-copy w-4 text-violet-500"></i><span>Copy</span>
+    </button>
+    <button id="ctxPaste" type="button" class="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 disabled:cursor-not-allowed">
+      <i class="fa-solid fa-paste w-4 text-amber-500"></i><span>Paste</span>
+    </button>
+    <div class="my-1 border-t border-slate-100 dark:border-slate-700"></div>
+    <button id="ctxDelete" type="button" class="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-rose-50 dark:hover:bg-rose-900/20 text-rose-600 dark:text-rose-400">
+      <i class="fa-solid fa-trash w-4"></i><span>Delete</span>
+    </button>
+  </div>
+</body>
+</html>
